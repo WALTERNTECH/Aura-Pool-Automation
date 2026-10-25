@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { ZodError } from "zod";
 import { env, isSandbox } from "./config/env.js";
 import { openapi } from "./lib/api.js";
+import { safeEqual } from "./lib/crypto.js";
 import { HttpError } from "./lib/http.js";
 import { adminAuth, merchantAuth, requireClientHeader } from "./middleware/auth.js";
 import { recordRequests } from "./middleware/metrics.js";
@@ -20,6 +21,17 @@ export function createApp() {
   // Render puts Cloudflare and its own proxy in front: the visitor is three hops back.
   app.set("trust proxy", env.nodeEnv === "test" ? false : 3);
   app.disable("x-powered-by");
+  // The merchant app and console reach the API through their own servers. Those servers send
+  // the visitor's real address with a shared secret; nobody else can set it.
+  app.use((req, _res, next) => {
+    const s = req.headers["x-aura-proxy-secret"];
+    if (env.proxySecret && typeof s === "string" && safeEqual(s, env.proxySecret)) {
+      const ip = String(req.headers["x-aura-client-ip"] ?? "").trim();
+      if (/^[0-9a-fA-F.:]{3,45}$/.test(ip)) Object.defineProperty(req, "ip", { value: ip, configurable: true });
+    }
+    delete req.headers["x-aura-proxy-secret"];
+    next();
+  });
   app.use(
     helmet({
       contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"], formAction: ["'none'"] } },

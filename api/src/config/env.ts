@@ -64,6 +64,8 @@ export type Env = {
   push: { vapidPublic: string; vapidPrivate: string; subject: string };
   /** Test mode only: one-time codes are returned to the screen. Refused against live Daraja. */
   otpEcho: boolean;
+  /** Shared with the merchant and admin front-end servers, which pass the visitor's real IP. */
+  proxySecret: string;
   turnstileSecret: string;
   turnstileSiteKey: string;
 };
@@ -143,6 +145,7 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
     email: { resendApiKey: e.RESEND_API_KEY ?? "", from: e.EMAIL_FROM ?? "Aura Pool <alerts@aura-pool.local>" },
     push: { vapidPublic: e.VAPID_PUBLIC_KEY ?? "", vapidPrivate: e.VAPID_PRIVATE_KEY ?? "", subject: e.VAPID_SUBJECT ?? "mailto:ops@aura-pool.local" },
     otpEcho: on(e.OTP_ECHO, nodeEnv !== "production"),
+    proxySecret: e.PROXY_SECRET ?? "",
     turnstileSecret: e.TURNSTILE_SECRET ?? "",
     turnstileSiteKey: e.TURNSTILE_SITE_KEY ?? "",
   };

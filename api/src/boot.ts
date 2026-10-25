@@ -52,8 +52,10 @@ export async function start(opts: { port?: number; db?: Db; jobs?: boolean; peri
   whenOnline((tableId) => kickDispatch(tableId));
 
   const app = createApp();
-  const server = await new Promise<Server>((resolve) => {
-    const s = app.listen(opts.port ?? env.port, () => resolve(s));
+  const server = await new Promise<Server>((resolve, reject) => {
+    const s = app.listen(opts.port ?? env.port);
+    s.once("listening", () => resolve(s));
+    s.once("error", (e) => reject(new Error(`Can't listen on port ${opts.port ?? env.port}: ${(e as Error).message}`)));
   });
   const port = (server.address() as AddressInfo).port;
   const localUrl = `http://127.0.0.1:${port}`;
