@@ -1,0 +1,55 @@
+# Aura Pool Automation on Render: three services from this one repository, each deployed
+# separately. The API owns the database (schema "aura" in the shared Supabase project); the
+# merchant app and the console are small Node servers that serve their built app and proxy /v1
+# to the API, so sign-in cookies stay first-party on each app's own origin.
+
+services:
+  - type: web
+    name: aura-pool-api
+    runtime: node
+    plan: free # switch to starter before real money: free sleeps, but M-Pesa callbacks need an answer within 2 s and schedules must run
+    region: frankfurt
+    buildCommand: cd api && npm ci --include=dev && npm run build
+    startCommand: cd api && npm start
+    healthCheckPath: /health
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_ENV, value: production }
+      - { key: DATABASE_URL, sync: false }
+      - { key: JWT_SECRET, sync: false }
+      - { key: MASTER_KEY, sync: false }
+      - { key: CALLBACK_SECRET, sync: false }
+      - { key: ADMIN_SETUP_TOKEN, sync: false }
+      - { key: PROXY_SECRET, sync: false }
+      - { key: MERCHANT_APP_URL, value: https://aura-pool-merchant.onrender.com }
+      - { key: ADMIN_APP_URL, value: https://aura-pool-admin.onrender.com }
+      - { key: PAYMENTS_PROVIDER, value: simulated }
+      - { key: OTP_ECHO, value: "on" }
+
+  - type: web
+    name: aura-pool-merchant
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: cd merchant && npm ci --include=dev && npm run build
+    startCommand: cd merchant && npm start
+    healthCheckPath: /healthz
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_ENV, value: production }
+      - { key: API_URL, value: https://aura-pool-api.onrender.com }
+      - { key: PROXY_SECRET, sync: false }
+
+  - type: web
+    name: aura-pool-admin
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: cd admin && npm ci --include=dev && npm run build
+    startCommand: cd admin && npm start
+    healthCheckPath: /healthz
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_ENV, value: production }
+      - { key: API_URL, value: https://aura-pool-api.onrender.com }
+      - { key: PROXY_SECRET, sync: false }

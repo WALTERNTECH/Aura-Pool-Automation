@@ -88,7 +88,7 @@ type Pending = { sub: string; stage: "totp" | "setup" };
 
 function setPending(res: Response, p: Pending) {
   const token = jwt.sign({ stage: p.stage }, env.jwtSecret, { subject: p.sub, audience: "aura-admin-mfa", expiresIn: 600 });
-  res.cookie(MFA_COOKIE, token, { httpOnly: true, secure: env.nodeEnv === "production", sameSite: "strict", path: "/v1/auth/admin", maxAge: 600_000 });
+  res.cookie(MFA_COOKIE, token, { httpOnly: true, secure: env.nodeEnv === "production", sameSite: "strict", path: "/v1/auth", maxAge: 600_000 });
 }
 function readPending(req: Request, stage: Pending["stage"]): string {
   try {
@@ -173,7 +173,7 @@ r.route({ method: "post", path: "/admin/setup/confirm", summary: "Confirm the au
     `update admin_users set status = 'active', totp_enabled_at = now(), last_totp_step = $2, recovery_codes = $3, invite_token_hash = null, invite_expires_at = null, failed_attempts = 0, locked_until = null, token_version = token_version + 1, last_login_at = now() where id = $1`,
     [id, step, JSON.stringify(codes.map((c) => sha256(c)))],
   );
-  res.clearCookie(MFA_COOKIE, { path: "/v1/auth/admin" });
+  res.clearCookie(MFA_COOKIE, { path: "/v1/auth" });
   const fresh = await one<{ token_version: number }>(db(), `select token_version from admin_users where id = $1`, [id]);
   await startSession(db(), res, req, "admin", id, fresh!.token_version);
   await audit(db(), { type: "admin", id, label: a.email, ip: req.ip }, "admin.mfa_enrolled", { type: "admin_user", id });
@@ -227,7 +227,7 @@ r.route(
       method = "recovery_code";
     } else throw badRequest("Enter the code from your authenticator app");
     await db().query(`update admin_users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = $1`, [id]);
-    res.clearCookie(MFA_COOKIE, { path: "/v1/auth/admin" });
+    res.clearCookie(MFA_COOKIE, { path: "/v1/auth" });
     await startSession(db(), res, req, "admin", id, a.token_version);
     await audit(db(), { type: "admin", id, label: a.email, ip: req.ip, ua: String(req.headers["user-agent"] ?? "") }, "admin.login", { type: "admin_user", id }, null, { method, recoveryCodesLeft: method === "recovery_code" ? a.recovery_codes.length - 1 : a.recovery_codes.length });
     return { ok: true, recoveryCodesLeft: method === "recovery_code" ? a.recovery_codes.length - 1 : undefined, permissions: permissionsFor(a.role as never) };

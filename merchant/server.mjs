@@ -115,9 +115,9 @@ function proxy(req, res) {
     headers["x-aura-client-ip"] = clientIp(req) ?? "";
   }
   const out = lib.request({ protocol: api.protocol, hostname: api.hostname, port: api.port || undefined, path: req.url, method: req.method, headers, timeout: 75_000 }, (pres) => {
+    // The API sets its own CSP (JSON gets none-at-all; printable sheets allow their inline styles).
     const h = { ...pres.headers };
-    delete h["content-security-policy"];
-    res.writeHead(pres.statusCode ?? 502, { ...h, ...SECURITY, "Cache-Control": h["cache-control"] ?? "no-store" });
+    res.writeHead(pres.statusCode ?? 502, { ...SECURITY, ...h, "Cache-Control": h["cache-control"] ?? "no-store" });
     pres.pipe(res);
   });
   out.on("timeout", () => out.destroy(new Error("timeout")));

@@ -10,9 +10,10 @@ import { invalidateSettings } from "../src/services/settings.js";
 
 export { drainJobs, runPeriodicOnce };
 
-/** A browser: keeps its own cookies, sends the client header. */
+/** A browser: keeps its own cookies (honouring their Path, as browsers do), sends the client header. */
 export class Client {
   cookies = new Map<string, string>();
+  paths = new Map<string, string>();
   constructor(
     readonly base: string,
     readonly kind: "merchant" | "admin" | "public" = "public",
@@ -22,15 +23,23 @@ export class Client {
     const headers: Record<string, string> = { "X-Aura-Client": this.kind };
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (opts.idem) headers["Idempotency-Key"] = opts.idem;
-    if (this.cookies.size) headers.Cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
+    const reqPath = path.split("?")[0];
+    const send = [...this.cookies].filter(([k]) => reqPath.startsWith(this.paths.get(k) ?? "/"));
+    if (send.length) headers.Cookie = send.map(([k, v]) => `${k}=${v}`).join("; ");
     const res = await fetch(this.base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     for (const c of res.headers.getSetCookie()) {
-      const [pair] = c.split(";");
+      const [pair, ...attrs] = c.split(";");
       const i = pair.indexOf("=");
       const name = pair.slice(0, i);
       const value = pair.slice(i + 1);
-      if (!value || /Expires=Thu, 01 Jan 1970/i.test(c)) this.cookies.delete(name);
-      else this.cookies.set(name, value);
+      const p = attrs.map((a) => a.trim()).find((a) => /^path=/i.test(a))?.slice(5) ?? "/";
+      if (!value || /Expires=Thu, 01 Jan 1970/i.test(c)) {
+        this.cookies.delete(name);
+        this.paths.delete(name);
+      } else {
+        this.cookies.set(name, value);
+        this.paths.set(name, p);
+      }
     }
     const text = await res.text();
     let parsed: unknown = text;
