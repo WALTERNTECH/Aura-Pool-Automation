@@ -145,7 +145,8 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
     email: { resendApiKey: e.RESEND_API_KEY ?? "", from: e.EMAIL_FROM ?? "Aura Pool <alerts@aura-pool.local>" },
     push: { vapidPublic: e.VAPID_PUBLIC_KEY ?? "", vapidPrivate: e.VAPID_PRIVATE_KEY ?? "", subject: e.VAPID_SUBJECT ?? "mailto:ops@aura-pool.local" },
     otpEcho: on(e.OTP_ECHO, nodeEnv !== "production"),
-    proxySecret: e.PROXY_SECRET ?? "",
+    // Cleaned the same way the front-end servers clean it, so a pasted line break or prefix still matches.
+    proxySecret: (e.PROXY_SECRET ?? "").trim().replace(/^PROXY_SECRET=/, "").replace(/^(["'])(.*)\1$/, "$2").trim(),
     turnstileSecret: e.TURNSTILE_SECRET ?? "",
     turnstileSiteKey: e.TURNSTILE_SITE_KEY ?? "",
   };

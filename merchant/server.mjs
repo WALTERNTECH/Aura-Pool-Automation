@@ -17,9 +17,21 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "dist");
 const port = Number(process.env.PORT ?? 5310);
 const api = new URL(process.env.API_URL ?? "http://localhost:4000");
-const proxySecret = process.env.PROXY_SECRET ?? "";
+const proxySecret = headerSecret(process.env.PROXY_SECRET);
 const hops = Number(process.env.TRUST_HOPS ?? (process.env.RENDER ? 3 : 0));
 const production = process.env.NODE_ENV === "production";
+
+// A pasted value can bring a line break, quotes or its "PROXY_SECRET=" prefix along. A header
+// can't carry the first, so clean it up, and if it still isn't header-safe, run without it
+// (the API then sees this server's IP) instead of failing every request.
+function headerSecret(raw) {
+  const v = String(raw ?? "").trim().replace(/^PROXY_SECRET=/, "").replace(/^(["'])(.*)\1$/, "$2").trim();
+  if (v && !/^[\x21-\x7e]+$/.test(v)) {
+    console.error("[merchant] PROXY_SECRET has characters a header can't carry (a pasted line break?); ignoring it. Re-enter it as one line.");
+    return "";
+  }
+  return v;
+}
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -114,18 +126,26 @@ function proxy(req, res) {
     headers["x-aura-proxy-secret"] = proxySecret;
     headers["x-aura-client-ip"] = clientIp(req) ?? "";
   }
-  const out = lib.request({ protocol: api.protocol, hostname: api.hostname, port: api.port || undefined, path: req.url, method: req.method, headers, timeout: 75_000 }, (pres) => {
-    // The API sets its own CSP (JSON gets none-at-all; printable sheets allow their inline styles).
-    const h = { ...pres.headers };
-    res.writeHead(pres.statusCode ?? 502, { ...SECURITY, ...h, "Cache-Control": h["cache-control"] ?? "no-store" });
-    pres.pipe(res);
-  });
-  out.on("timeout", () => out.destroy(new Error("timeout")));
-  out.on("error", () => {
+  const unreachable = () => {
     if (res.headersSent) return res.end();
     res.writeHead(502, { ...SECURITY, "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { code: "api_unreachable", message: "The service is waking up or unreachable. Try again in a moment." } }));
-  });
+  };
+  let out;
+  try {
+    out = lib.request({ protocol: api.protocol, hostname: api.hostname, port: api.port || undefined, path: req.url, method: req.method, headers, timeout: 75_000 }, (pres) => {
+      // The API sets its own CSP (JSON gets none-at-all; printable sheets allow their inline styles).
+      const h = { ...pres.headers };
+      res.writeHead(pres.statusCode ?? 502, { ...SECURITY, ...h, "Cache-Control": h["cache-control"] ?? "no-store" });
+      pres.pipe(res);
+    });
+  } catch (e) {
+    // A header the request can't carry throws here, before any event; one bad request must not stop the server.
+    console.error(`[merchant] proxy ${req.method} ${req.url?.split("?")[0]}: ${e.code ?? e.message}`);
+    return unreachable();
+  }
+  out.on("timeout", () => out.destroy(new Error("timeout")));
+  out.on("error", unreachable);
   req.pipe(out);
 }
 
