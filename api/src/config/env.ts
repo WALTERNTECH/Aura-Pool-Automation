@@ -70,13 +70,13 @@ export type Env = {
   turnstileSiteKey: string;
 };
 
-function masterKey(raw: string | undefined, nodeEnv: Env["nodeEnv"]): Buffer {
+function masterKey(raw: string | undefined): Buffer {
   if (raw) {
     const b = /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
     if (b.length !== 32) throw new Error("MASTER_KEY must be 32 bytes (64 hex chars or base64)");
     return b;
   }
-  if (nodeEnv === "production") throw new Error("MASTER_KEY is required in production");
+  // Development only: production refuses to start without it (checked with the others in loadEnv).
   return Buffer.alloc(32, 7);
 }
 
@@ -106,7 +106,7 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
     databaseUrl: e.DATABASE_URL || null,
     pgliteDir: e.PGLITE_DIR || null,
     jwtSecret: e.JWT_SECRET ?? (nodeEnv === "production" ? "" : "dev-only-secret-change-me-dev-only-secret"),
-    masterKey: masterKey(e.MASTER_KEY, nodeEnv),
+    masterKey: masterKey(e.MASTER_KEY),
     adminSetupToken: e.ADMIN_SETUP_TOKEN || (nodeEnv === "production" ? null : "local-setup"),
     callbackSecret: e.CALLBACK_SECRET ?? (nodeEnv === "production" ? "" : "dev-callback"),
     provider,
@@ -153,11 +153,12 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
   if (nodeEnv === "production") {
     const missing = [
       !env.databaseUrl && "DATABASE_URL",
+      !e.MASTER_KEY && "MASTER_KEY",
       env.jwtSecret.length < 32 && "JWT_SECRET (32+ chars)",
       env.callbackSecret.length < 16 && "CALLBACK_SECRET (16+ chars)",
       env.device.transport === "external" && !env.device.mqttUrl && "MQTT_URL",
     ].filter(Boolean);
-    if (missing.length) throw new Error(`Missing production settings: ${missing.join(", ")}`);
+    if (missing.length) throw new Error(`Missing production settings: ${missing.join(", ")}. Add them to this service's environment.`);
     if (env.provider === "daraja" && !darajaReady) throw new Error("PAYMENTS_PROVIDER=daraja needs DARAJA_CONSUMER_KEY and DARAJA_CONSUMER_SECRET");
   }
   // Codes on screen are a test convenience. Never against real money.
