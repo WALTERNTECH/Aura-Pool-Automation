@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import QRCode from "qrcode";
 import { z } from "zod";
-import { env } from "../config/env.js";
+import { cleanPasted, env } from "../config/env.js";
 import { db, one } from "../config/db.js";
 import { Api, zPin } from "../lib/api.js";
 import { decrypt, encrypt, hashPassword, hashSecret, newTotpSecret, randomToken, sha256, totpUri, verifyPassword, verifyTotp } from "../lib/crypto.js";
@@ -135,7 +135,10 @@ r.route(
     body: z.object({ setupToken: z.string().min(8), email: z.string().email(), name: z.string().min(2).max(80), phone: z.string().min(9).max(16).optional(), password: z.string().min(12, "Use at least 12 characters").max(200) }),
   },
   async ({ body, res, req }) => {
-    if (!env.adminSetupToken || hashSecret(body.setupToken) !== hashSecret(env.adminSetupToken)) throw forbidden("That setup key isn't right");
+    // Pasted keys often arrive as the whole "ADMIN_SETUP_TOKEN=…" line, or with a trailing space.
+    if (!env.adminSetupToken || hashSecret(cleanPasted(body.setupToken, "ADMIN_SETUP_TOKEN")) !== hashSecret(env.adminSetupToken)) {
+      throw forbidden("That setup key isn't right. Paste only the part after ADMIN_SETUP_TOKEN= from the API's settings.");
+    }
     if (await one(db(), `select 1 from admin_users where status = 'active' limit 1`)) throw conflict("The first admin already exists. Ask them for an invite.");
     const email = body.email.trim().toLowerCase();
     const phone = body.phone ? normaliseMsisdn(body.phone) : null;

@@ -25,6 +25,22 @@ after(async () => {
   await w?.stop();
 });
 
+describe("first-admin setup key", () => {
+  const body = (setupToken: string) => ({ setupToken, email: "second@aura.test", name: "Second", password: "a long enough password" });
+  it("accepts the key pasted as the whole line, with stray whitespace", async () => {
+    // The key is checked before "already set up", so a 409 means the key itself was accepted.
+    const c = new Client(w.url, "admin");
+    for (const k of ["ADMIN_SETUP_TOKEN=test-setup-token", " test-setup-token\r\n", '"test-setup-token"']) {
+      await c.post("/v1/auth/admin/setup", body(k), 409);
+    }
+  });
+  it("still refuses a wrong key", async () => {
+    const c = new Client(w.url, "admin");
+    await c.post("/v1/auth/admin/setup", body("test-setup-tokenx"), 403);
+    await c.post("/v1/auth/admin/setup", body("OTHER_NAME=test-setup-token"), 403);
+  });
+});
+
 describe("signed commands", () => {
   const secret = "device-secret-for-tests";
   const now = new Date();

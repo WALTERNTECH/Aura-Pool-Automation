@@ -9,6 +9,21 @@ import { commissionAmount } from "../src/services/pricing.js";
 import { judgeStatus } from "../src/providers/daraja.js";
 import { parseAccountBalance } from "../src/providers/common.js";
 import { ownerStatus } from "../src/services/payments.js";
+import { cleanPasted, loadEnv } from "../src/config/env.js";
+
+describe("pasted settings", () => {
+  it("drops the line break, quotes and NAME= prefix a paste brings along", () => {
+    for (const v of ["abc123", "abc123\r\n", "  abc123 ", "X=abc123", "X = abc123", '"abc123"', "X='abc123'\n"]) assert.equal(cleanPasted(v, "X"), "abc123", JSON.stringify(v));
+    assert.equal(cleanPasted("Y=abc123", "X"), "Y=abc123");
+    assert.equal(cleanPasted("a=b=c", "X"), "a=b=c");
+  });
+  it("cleans secrets read from the environment", () => {
+    const e = loadEnv({ NODE_ENV: "test", ADMIN_SETUP_TOKEN: "ADMIN_SETUP_TOKEN=key-1234\n", PROXY_SECRET: " p \r\n", MASTER_KEY: "0".repeat(64) + "\n" });
+    assert.equal(e.adminSetupToken, "key-1234");
+    assert.equal(e.proxySecret, "p");
+    assert.equal(e.masterKey.length, 32);
+  });
+});
 
 describe("matching rules", () => {
   it("normalises the account numbers customers type", () => {

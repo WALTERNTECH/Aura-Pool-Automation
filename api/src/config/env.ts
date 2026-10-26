@@ -70,6 +70,14 @@ export type Env = {
   turnstileSiteKey: string;
 };
 
+/**
+ * A secret copied from a file or a dashboard can bring a line break, quotes or its own "NAME="
+ * prefix along. Settings and what people type into forms (the setup key) are cleaned the same way.
+ */
+export function cleanPasted(raw: string, name: string): string {
+  return raw.trim().replace(new RegExp(`^${name}\\s*=\\s*`), "").replace(/^(["'])(.*)\1$/, "$2").trim();
+}
+
 function masterKey(raw: string | undefined): Buffer {
   if (raw) {
     const b = /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
@@ -96,6 +104,7 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
   const darajaReady = Boolean(e.DARAJA_CONSUMER_KEY && e.DARAJA_CONSUMER_SECRET);
   const provider = e.PAYMENTS_PROVIDER === "daraja" ? "daraja" : e.PAYMENTS_PROVIDER === "simulated" ? "simulated" : darajaReady ? "daraja" : "simulated";
   const allow = e.DARAJA_IP_ALLOWLIST;
+  const secret = (name: string) => (e[name] == null ? undefined : cleanPasted(e[name]!, name));
 
   const env: Env = {
     nodeEnv,
@@ -103,12 +112,12 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
     publicUrl,
     merchantUrl: trim(e.MERCHANT_APP_URL ?? "http://localhost:5310"),
     adminUrl: trim(e.ADMIN_APP_URL ?? "http://localhost:5320"),
-    databaseUrl: e.DATABASE_URL || null,
+    databaseUrl: secret("DATABASE_URL") || null,
     pgliteDir: e.PGLITE_DIR || null,
-    jwtSecret: e.JWT_SECRET ?? (nodeEnv === "production" ? "" : "dev-only-secret-change-me-dev-only-secret"),
-    masterKey: masterKey(e.MASTER_KEY),
-    adminSetupToken: e.ADMIN_SETUP_TOKEN || (nodeEnv === "production" ? null : "local-setup"),
-    callbackSecret: e.CALLBACK_SECRET ?? (nodeEnv === "production" ? "" : "dev-callback"),
+    jwtSecret: secret("JWT_SECRET") ?? (nodeEnv === "production" ? "" : "dev-only-secret-change-me-dev-only-secret"),
+    masterKey: masterKey(secret("MASTER_KEY")),
+    adminSetupToken: secret("ADMIN_SETUP_TOKEN") || (nodeEnv === "production" ? null : "local-setup"),
+    callbackSecret: secret("CALLBACK_SECRET") ?? (nodeEnv === "production" ? "" : "dev-callback"),
     provider,
     daraja: {
       env: e.DARAJA_ENV === "production" ? "production" : "sandbox",
@@ -145,8 +154,8 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
     email: { resendApiKey: e.RESEND_API_KEY ?? "", from: e.EMAIL_FROM ?? "Aura Pool <alerts@aura-pool.local>" },
     push: { vapidPublic: e.VAPID_PUBLIC_KEY ?? "", vapidPrivate: e.VAPID_PRIVATE_KEY ?? "", subject: e.VAPID_SUBJECT ?? "mailto:ops@aura-pool.local" },
     otpEcho: on(e.OTP_ECHO, nodeEnv !== "production"),
-    // Cleaned the same way the front-end servers clean it, so a pasted line break or prefix still matches.
-    proxySecret: (e.PROXY_SECRET ?? "").trim().replace(/^PROXY_SECRET=/, "").replace(/^(["'])(.*)\1$/, "$2").trim(),
+    // The front-end servers clean it the same way, so a pasted line break or prefix still matches.
+    proxySecret: secret("PROXY_SECRET") ?? "",
     turnstileSecret: e.TURNSTILE_SECRET ?? "",
     turnstileSiteKey: e.TURNSTILE_SITE_KEY ?? "",
   };
@@ -154,7 +163,7 @@ export function loadEnv(e: NodeJS.ProcessEnv = process.env): Env {
   if (nodeEnv === "production") {
     const missing = [
       !env.databaseUrl && "DATABASE_URL",
-      !e.MASTER_KEY && "MASTER_KEY",
+      !secret("MASTER_KEY") && "MASTER_KEY",
       env.jwtSecret.length < 32 && "JWT_SECRET (32+ chars)",
       env.callbackSecret.length < 16 && "CALLBACK_SECRET (16+ chars)",
       env.device.transport === "external" && !env.device.mqttUrl && "MQTT_URL",

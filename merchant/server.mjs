@@ -25,7 +25,7 @@ const production = process.env.NODE_ENV === "production";
 // can't carry the first, so clean it up, and if it still isn't header-safe, run without it
 // (the API then sees this server's IP) instead of failing every request.
 function headerSecret(raw) {
-  const v = String(raw ?? "").trim().replace(/^PROXY_SECRET=/, "").replace(/^(["'])(.*)\1$/, "$2").trim();
+  const v = String(raw ?? "").trim().replace(/^PROXY_SECRET\s*=\s*/, "").replace(/^(["'])(.*)\1$/, "$2").trim();
   if (v && !/^[\x21-\x7e]+$/.test(v)) {
     console.error("[merchant] PROXY_SECRET has characters a header can't carry (a pasted line break?); ignoring it. Re-enter it as one line.");
     return "";
