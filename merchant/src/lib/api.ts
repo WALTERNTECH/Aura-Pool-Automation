@@ -43,9 +43,10 @@ export async function call<T = unknown>(path: string, opts: Opts = {}): Promise<
   } catch {
     throw new ApiError(0, "network", "network");
   }
-  if (res.status === 401) {
+  if (res.status === 401 && !url.startsWith("/v1/auth/")) {
+    // Expired, or no token at all (a browser that dropped the cookie): try the refresh token once.
     const j = await res.clone().json().catch(() => ({}));
-    if (j?.error?.code === "token_expired" && (await refresh())) res = await go();
+    if ((j?.error?.code === "token_expired" || j?.error?.code === "unauthorized") && (await refresh())) res = await go();
   }
   if (res.status === 401 && opts.auth !== false && !url.startsWith("/v1/auth/")) onSignedOut();
   const text = await res.text();

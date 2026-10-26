@@ -22,7 +22,10 @@ const secure = () => env.nodeEnv === "production";
 
 function setCookies(res: Response, kind: Kind, access: string, refresh: string) {
   const c = COOKIES[kind];
-  res.cookie(c.at, access, { httpOnly: true, secure: secure(), sameSite: "strict", path: "/", maxAge: c.accessTtl * 1000 });
+  // The cookie outlives the token inside it (which still expires after accessTtl): if the browser
+  // dropped it on time, the next request would carry no token at all, and the API couldn't tell
+  // "expired, refresh me" from "never signed in", so people were signed out instead of refreshed.
+  res.cookie(c.at, access, { httpOnly: true, secure: secure(), sameSite: "strict", path: "/", maxAge: c.idleS * 1000 });
   res.cookie(c.rt, refresh, { httpOnly: true, secure: secure(), sameSite: "strict", path: "/v1/auth", maxAge: c.idleS * 1000 });
 }
 

@@ -25,6 +25,22 @@ after(async () => {
   await w?.stop();
 });
 
+describe("session cookies", () => {
+  it("keep the access cookie for the session, so an expired token is refreshed, not signed out", async () => {
+    const c = await inviteAdmin(w, "auditor", "cookie-check@aura.test");
+    const r = await c.call("POST", "/v1/auth/admin/refresh", {}, { expect: 200 });
+    const at = r.headers.getSetCookie().find((s) => s.startsWith("aura_a_at="));
+    assert.match(at ?? "", /Max-Age=1800/, "the access cookie lives as long as the 30-minute idle window");
+    // A browser that dropped it anyway: no token is "unauthorized", and the refresh token still works.
+    c.cookies.delete("aura_a_at");
+    const gone = await c.call("GET", "/v1/a/me");
+    assert.equal(gone.status, 401);
+    assert.equal(gone.body.error.code, "unauthorized");
+    await c.post("/v1/auth/admin/refresh", {});
+    await c.get("/v1/a/me");
+  });
+});
+
 describe("first-admin setup key", () => {
   const body = (setupToken: string) => ({ setupToken, email: "second@aura.test", name: "Second", password: "a long enough password" });
   it("accepts the key pasted as the whole line, with stray whitespace", async () => {
