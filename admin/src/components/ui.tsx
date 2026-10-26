@@ -55,13 +55,13 @@ export function PageHead({ title, sub, crumb, actions }: { title: ReactNode; sub
   );
 }
 
-export function Card({ title, actions, children, flush }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean }) {
+export function Card({ title, actions, children, flush, className }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean; className?: string }) {
   return (
-    <section className={`card${flush ? " flush" : ""}`}>
+    <section className={`card${flush ? " flush" : ""}${className ? ` ${className}` : ""}`}>
       {title || actions ? (
         <div className="cardhead" style={flush ? { padding: "14px 16px 0" } : undefined}>
           {title ? <h2>{title}</h2> : <span />}
-          {actions ? <div className="row">{actions}</div> : null}
+          {actions ? <div className="row wrap">{actions}</div> : null}
         </div>
       ) : null}
       {children}

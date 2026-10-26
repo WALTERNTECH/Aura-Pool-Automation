@@ -129,6 +129,35 @@ r.route({ method: "get", path: "/dashboard", summary: "Command dashboard", auth:
   const recon = await one<{ status: string; finished_at: Date | null; acknowledged_at: Date | null }>(q, `select status, finished_at, acknowledged_at from reconciliation_runs where status <> 'running' order by started_at desc limit 1`);
   const alertCounts = await many<{ severity: string; n: number }>(q, `select severity, count(*)::int as n from alerts where status <> 'resolved' group by 1`);
   const openAlerts = await many(q, `select id, type, severity, title, status, created_at, last_seen_at, occurrences, entity_type, entity_id from alerts where status <> 'resolved' order by case severity when 'critical' then 0 when 'warning' then 1 else 2 end, last_seen_at desc limit 12`);
+  // The last 14 days by Nairobi day (same definitions as `figures`), and today by hour, for the charts.
+  const d0 = addDays(today, -13);
+  const dayMoney = await many<{ d: string; gross: number; revenue: number }>(
+    q,
+    `select to_char(credited_at at time zone 'Africa/Nairobi', 'YYYY-MM-DD') as d, coalesce(sum(amount_minor), 0) as gross, coalesce(sum(commission_minor), 0) as revenue
+       from payments where credited_at >= $1 and credited_at < $2 group by 1`,
+    [nairobiInstant(d0), t1],
+  );
+  const dayGames = await many<{ d: string; n: number }>(
+    q,
+    `select to_char(acked_at at time zone 'Africa/Nairobi', 'YYYY-MM-DD') as d, count(*)::int as n from game_credits where status = 'acked' and acked_at >= $1 and acked_at < $2 group by 1`,
+    [nairobiInstant(d0), t1],
+  );
+  const trend: { date: string; grossMinor: number; platformRevenueMinor: number; games: number }[] = [];
+  for (let d = d0; d <= today; d = addDays(d, 1)) {
+    const m = dayMoney.find((x) => x.d === d);
+    trend.push({ date: d, grossMinor: m?.gross ?? 0, platformRevenueMinor: m?.revenue ?? 0, games: dayGames.find((x) => x.d === d)?.n ?? 0 });
+  }
+  const hours = await many<{ h: number; n: number }>(q, `select extract(hour from acked_at at time zone 'Africa/Nairobi')::int as h, count(*)::int as n from game_credits where status = 'acked' and acked_at >= $1 and acked_at < $2 group by 1`, [t0, t1]);
+  const topMerchants = await many<{ id: string; code: string; name: string; gross: number; games: number }>(
+    q,
+    `select m.id, m.code, m.business_name as name, coalesce(sum(p.amount_minor), 0) as gross,
+            (select count(*)::int from game_credits g where g.merchant_id = m.id and g.status = 'acked' and g.acked_at >= $1 and g.acked_at < $2) as games
+       from payments p join merchants m on m.id = p.merchant_id
+      where p.credited_at >= $1 and p.credited_at < $2
+      group by m.id order by gross desc limit 5`,
+    [m0, t1],
+  );
+  const disputes = await one<{ n: number }>(q, `select count(*)::int as n from disputes where status in ('open','in_progress','waiting_merchant')`);
   return {
     today: { ...(await figures(q, t0, t1)), previous: await figures(q, y0, t0) },
     month: { ...(await figures(q, m0, t1)), previous: await figures(q, pm0, pm1) },
@@ -148,12 +177,16 @@ r.route({ method: "get", path: "/dashboard", summary: "Command dashboard", auth:
       balancesAt: fl.takenAt,
       owedToMerchantsMinor: owed?.s ?? 0,
       pendingApproval: { count: pending?.n ?? 0, amountMinor: pending?.s ?? 0 },
-      float: { status: fl.status, requiredMinor: fl.requiredMinor, suggestedTransferMinor: fl.suggestedTransferMinor },
+      float: { status: fl.status, requiredMinor: fl.requiredMinor, minimumMinor: fl.minimumMinor, suggestedTransferMinor: fl.suggestedTransferMinor },
       reconciliation: recon ? { status: recon.status, at: recon.finished_at, acknowledged: Boolean(recon.acknowledged_at) } : null,
       killSwitch: await getSetting("kill_switch"),
       autoPayoutsPaused: await getSetting("auto_payouts_paused"),
     },
     alerts: { counts: Object.fromEntries(alertCounts.map((a) => [a.severity, a.n])), open: openAlerts },
+    trend,
+    byHour: Array.from({ length: 24 }, (_, h) => ({ hour: h, games: hours.find((x) => x.h === h)?.n ?? 0 })),
+    topMerchants: topMerchants.map((m) => ({ id: m.id, code: m.code, name: m.name, grossMinor: m.gross, games: m.games })),
+    disputesOpen: disputes?.n ?? 0,
     activity: await many(q, `select id, type, title, entity_type, entity_id, at from activity order by at desc limit 30`),
     queue: await queueDepth(q),
     updatedAt: new Date().toISOString(),

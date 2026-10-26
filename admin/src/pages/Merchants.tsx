@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ActionButton } from "../components/Action";
 import { DataTable, SimpleTable } from "../components/DataTable";
 import { Banner, Card, Copy, Dialog, ErrorBox, KV, Loading, Money, PageHead, Stat, Status, Tabs, toast } from "../components/ui";
@@ -11,7 +11,8 @@ import { useSession } from "../lib/session";
 export function MerchantList() {
   const { can } = useSession();
   const [f, setF] = useQueryState({ q: "", status: "" });
-  const [open, setOpen] = useState(false);
+  const [sp] = useSearchParams();
+  const [open, setOpen] = useState(sp.get("new") === "1");
   return (
     <div className="stack">
       <PageHead title="Merchants" sub="Table owners: their status, balance and activity." actions={can("merchants.manage") ? <button className="btn primary" onClick={() => setOpen(true)}>New merchant</button> : null} />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { call, qs } from "../lib/api";
 import { useInterval } from "../lib/hooks";
+import { Icon } from "./Icon";
 import { Empty, ErrorBox, Loading } from "./ui";
 
 // Server-side paginated tables: the API does the filtering, sorting and paging; this shows the
@@ -51,6 +52,8 @@ export function DataTable<T extends Record<string, any>>({
     return new Set(columns.filter((c) => !c.hidden).map((c) => c.key));
   });
   const [pick, setPick] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = Object.values(params).filter((v) => v !== "" && v != null && v !== false).length;
   const paramKey = JSON.stringify(params);
   useEffect(() => setPage(1), [paramKey]);
 
@@ -77,14 +80,20 @@ export function DataTable<T extends Record<string, any>>({
   return (
     <section className="card flush">
       <div className="tablebar">
-        {toolbar}
+        {toolbar ? (
+          <button className="btn sm filters-btn" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen}>
+            <Icon name="search" /> Filters{activeFilters ? ` · ${activeFilters}` : ""}
+          </button>
+        ) : null}
+        {toolbar ? <div className={`filters${filtersOpen ? " open" : ""}`}>{toolbar}</div> : null}
         <span className="grow" />
+        {data ? <span className="tiny faint">{data.total.toLocaleString("en-KE")} {data.total === 1 ? "row" : "rows"}</span> : null}
         <div style={{ position: "relative" }}>
           <button className="btn sm" onClick={() => setPick((p) => !p)} aria-expanded={pick}>
             Columns
           </button>
           {pick ? (
-            <div className="card" style={{ position: "absolute", right: 0, top: 36, zIndex: 20, minWidth: 200, padding: 10 }}>
+            <div className="colpick">
               {columns.map((c) => (
                 <label key={c.key} className="check" style={{ padding: "3px 0" }}>
                   <input
@@ -146,8 +155,8 @@ export function DataTable<T extends Record<string, any>>({
                 {data.items.map((row, i) => (
                   <tr key={(row.id as string) ?? i} className={rowLink ? "click" : ""} onClick={rowLink ? (e) => (e.target as HTMLElement).closest("a,button") || nav(rowLink(row)) : undefined}>
                     {shown.map((c) => (
-                      <td key={c.key} className={c.right ? "r" : ""}>
-                        {c.render(row)}
+                      <td key={c.key} className={c.right ? "r" : ""} data-label={c.label}>
+                        <div className="cell">{c.render(row)}</div>
                       </td>
                     ))}
                   </tr>
@@ -201,8 +210,8 @@ export function SimpleTable<T extends Record<string, any>>({ rows, columns, rowL
           {rows.map((row, i) => (
             <tr key={(row.id as string) ?? i} className={rowLink ? "click" : ""} onClick={rowLink ? (e) => (e.target as HTMLElement).closest("a,button") || nav(rowLink(row)) : undefined}>
               {columns.map((c) => (
-                <td key={c.key} className={c.right ? "r" : ""}>
-                  {c.render(row)}
+                <td key={c.key} className={c.right ? "r" : ""} data-label={c.label}>
+                  <div className="cell">{c.render(row)}</div>
                 </td>
               ))}
             </tr>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ActionButton } from "../components/Action";
+import { BarChart } from "../components/Charts";
 import { DataTable, SimpleTable } from "../components/DataTable";
 import { Banner, Card, ErrorBox, Json, KV, Loading, Money, PageHead, Stat, Status, Tabs, toast } from "../components/ui";
 import { call, errText } from "../lib/api";
@@ -624,7 +625,22 @@ export function Reports() {
               <Stat label="Commission" value={ksh(s.data.kpis.commissionMinor)} />
               <Stat label="Failed payment rate" value={`${s.data.kpis.failedRate}%`} delta={Object.entries(s.data.kpis.failedByCategory).map(([k, v]) => `${humanize(k)} ${v}`).join(" · ")} />
             </div>
-            <Bars rows={s.data.series.map((x: any) => ({ label: x.bucket.slice(5), value: x.games }))} />
+            <BarChart
+              height={180}
+              ariaLabel="Games per period"
+              format={(v) => String(Math.round(v))}
+              data={s.data.series.map((x: any) => ({
+                key: x.bucket,
+                label: x.bucket.length > 7 ? x.bucket.slice(8) : x.bucket.slice(5),
+                value: x.games,
+                tip: (
+                  <>
+                    <b>{x.bucket}</b>
+                    {x.games} <span>games</span> · {ksh(x.collectedMinor)} <span>collected</span>
+                  </>
+                ),
+              }))}
+            />
             <SimpleTable rows={s.data.byTable} rowLink={(t: any) => `/tables/${t.tableId}`} columns={[{ key: "t", label: "Table", render: (t: any) => `${t.tableId} · ${t.name}` }, { key: "g", label: "Games", right: true, render: (t: any) => t.games }, { key: "e", label: "Merchant earnings", right: true, render: (t: any) => ksh(t.earningsMinor) }]} />
           </div>
         ) : <Loading />}
@@ -632,26 +648,3 @@ export function Reports() {
     </div>
   );
 }
-
-function Bars({ rows }: { rows: { label: string; value: number }[] }) {
-  const W = 720;
-  const H = 150;
-  const max = Math.max(1, ...rows.map((r) => r.value));
-  const slot = W / Math.max(1, rows.length);
-  return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Games per period: ${rows.map((r) => `${r.label} ${r.value}`).join(", ")}`}>
-      <line className="grid" x1={0} x2={W} y1={H - 18} y2={H - 18} />
-      {rows.map((r, i) => {
-        const h = (r.value / max) * (H - 32);
-        return (
-          <g key={i}>
-            <rect className="bar" x={i * slot + slot * 0.2} y={H - 18 - h} width={slot * 0.6} height={h} rx={2} />
-            {rows.length <= 31 && i % Math.ceil(rows.length / 10) === 0 ? <text className="axis" x={i * slot + slot / 2} y={H - 4} textAnchor="middle">{r.label}</text> : null}
-          </g>
-        );
-      })}
-      <text className="axis" x={W} y={10} textAnchor="end">{max}</text>
-    </svg>
-  );
-}
-

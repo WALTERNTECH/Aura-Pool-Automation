@@ -53,11 +53,23 @@ const P: Record<string, string> = {
   eye: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   report: "M4 20V4h11l5 5v11zM14 4v6h6M8 16v-3M12 16v-6M16 16v-2",
   trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8.5 20h7M10 17h4",
+  down: "m6 9 6 6 6-6",
+  up: "m6 15 6-6 6 6",
+  menu: "M4 7h16M4 12h16M4 17h16",
+  wallet: "M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3M4 7.5V18a2 2 0 0 0 2 2h14V9H6.5A2.5 2.5 0 0 1 4 7.5zM16.5 14.5h.01",
+  trendUp: "M3 17l6-6 4 4 8-8M15 7h6v6",
+  trendDown: "M3 7l6 6 4-4 8 8M15 17h6v-6",
+  bolt: "M13 3 4 14h7l-1 7 9-11h-7z",
+  building: "M4 21V5l8-2v18M12 8h8v13M8 8h.01M8 12h.01M8 16h.01M16 12h.01M16 16h.01M2 21h20",
+  layers: "m12 3 9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5",
+  external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+  arrowRight: "M5 12h14M13 6l6 6-6 6",
+  cash: "M3 6h18v12H3zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 9v.01M17.5 15v.01",
 };
 
-export function Icon({ name, className, title }: { name: keyof typeof P | string; className?: string; title?: string }) {
+export function Icon({ name, className, title, size }: { name: keyof typeof P | string; className?: string; title?: string; size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden={title ? undefined : true} role={title ? "img" : undefined}>
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden={title ? undefined : true} role={title ? "img" : undefined}>
       {title ? <title>{title}</title> : null}
       <path d={P[name] ?? P.info} />
     </svg>
