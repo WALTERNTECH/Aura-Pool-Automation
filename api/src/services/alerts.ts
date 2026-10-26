@@ -52,11 +52,14 @@ export async function raise(q: Q, a: RaiseInput): Promise<string> {
     const open = await one<{ id: string; severity: Severity }>(q, `select id, severity from alerts where dedupe_key = $1 and status <> 'resolved' for update`, [a.dedupeKey]);
     if (open) {
       const escalate = RANK[a.severity] > RANK[open.severity];
+      // The title follows the latest occurrence too, unless that one is milder than the alert.
+      const retitle = RANK[a.severity] >= RANK[open.severity];
       await q.query(
         `update alerts set last_seen_at = now(), occurrences = occurrences + 1, detail = coalesce($2, detail),
-                severity = case when $3 then $4 else severity end, data = data || $5::jsonb
+                severity = case when $3 then $4 else severity end, data = data || $5::jsonb,
+                title = case when $6 then $7 else title end
           where id = $1`,
-        [open.id, a.detail ?? null, escalate, a.severity, JSON.stringify(a.data ?? {})],
+        [open.id, a.detail ?? null, escalate, a.severity, JSON.stringify(a.data ?? {}), retitle, a.title],
       );
       if (escalate) {
         await q.query(`insert into alert_events (alert_id, kind, note) values ($1, 'escalated', $2)`, [open.id, `Now ${a.severity}`]);

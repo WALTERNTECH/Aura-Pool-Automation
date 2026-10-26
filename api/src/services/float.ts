@@ -102,8 +102,9 @@ export async function evaluateFloat() {
   await raise(db(), {
     type: "float_low",
     severity: f.status === "critical" ? "critical" : "warning",
-    title: f.status === "critical" ? `Working float is below the minimum (${formatKsh(f.workingMinor!)})` : `Working float is short of the next 24 hours of payouts`,
-    detail: `Needs ${formatKsh(f.requiredMinor)} with a ${f.bufferPct}% buffer; has ${formatKsh(f.workingMinor!)}. Suggested transfer from Utility: ${formatKsh(f.suggestedTransferMinor)}.`,
+    // The title stays put while the alert is open (repeats only refresh the detail), so no balance in it.
+    title: f.status === "critical" ? `Working float is below its ${formatKsh(f.minimumMinor)} minimum` : `Working float is short of the next 24 hours of payouts`,
+    detail: `Has ${formatKsh(f.workingMinor!)}. Minimum ${formatKsh(f.minimumMinor)}; the next 24 hours need ${formatKsh(f.requiredMinor)} with a ${f.bufferPct}% buffer. Suggested transfer from Utility: ${formatKsh(f.suggestedTransferMinor)}.`,
     dedupeKey: "float:low",
     entity: { type: "float", id: "working" },
     data: { suggestedTransferMinor: f.suggestedTransferMinor },
